@@ -1,3 +1,4 @@
+alert("Hello!");
 /* =====================================================
 NEON SPACE THIEVES — script.js  [FIXED]
 Zero external assets. Pure Canvas2D drawing only.
