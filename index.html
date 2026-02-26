@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -8,70 +7,49 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-```
-html, body {
-  width: 100%; height: 100%;
-  background: #000;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-  font-family: 'Courier New', Courier, monospace;
-}
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+      font-family: 'Courier New', Courier, monospace;
+    }
 
-#wrapper {
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-}
+    #wrapper {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
 
-#gameContainer {
-  position: relative;
-  border: 2px solid #440066;
-  box-shadow: 0 0 30px #aa00ff, 0 0 70px #440066;
-  line-height: 0;
-}
+    #gameContainer { position: relative; line-height: 0;
+      border: 2px solid #440066;
+      box-shadow: 0 0 30px #aa00ff, 0 0 70px #440066; }
 
-#gameCanvas { display: block; }
+    #gameCanvas { display: block; cursor: default; }
 
-#overlay {
-  display: none;
-  position: absolute; inset: 0;
-  background: rgba(0,0,10,0.87);
-  flex-direction: column; align-items: center; justify-content: center;
-  gap: 18px;
-}
-#overlay.show { display: flex; }
+    /* The PLAY AGAIN button floats over the canvas, hidden until game ends */
+    #replayBtn {
+      display: none;
+      position: absolute;
+      left: 50%; top: 68%;
+      transform: translate(-50%, -50%);
+      background: transparent;
+      border: 2px solid #ffff00;
+      color: #ffff00;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 20px; font-weight: bold;
+      letter-spacing: 4px; padding: 14px 44px;
+      cursor: pointer;
+      text-shadow: 0 0 10px #ffff00;
+      box-shadow: 0 0 22px #ffff00, inset 0 0 10px rgba(255,255,0,0.08);
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    #replayBtn.show { display: block; }
+    #replayBtn:hover { background: rgba(255,255,0,0.14); }
 
-#oTitle {
-  font-size: 52px; font-weight: bold; letter-spacing: 6px;
-  text-shadow: 0 0 30px currentColor;
-  font-family: 'Courier New', Courier, monospace;
-}
-#oWinner {
-  font-size: 32px; font-weight: bold; letter-spacing: 4px;
-  color: #ffff00; text-shadow: 0 0 18px #ffff00;
-  font-family: 'Courier New', Courier, monospace;
-}
-#oScores {
-  font-size: 16px; letter-spacing: 3px; color: #aaaaaa;
-  font-family: 'Courier New', Courier, monospace;
-}
-
-#replayBtn {
-  margin-top: 8px; background: transparent;
-  border: 2px solid #ffff00; color: #ffff00;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 20px; font-weight: bold;
-  letter-spacing: 4px; padding: 12px 40px; cursor: pointer;
-  text-shadow: 0 0 10px #ffff00;
-  box-shadow: 0 0 20px #ffff00, inset 0 0 10px rgba(255,255,0,0.1);
-  transition: background 0.15s;
-}
-#replayBtn:hover { background: rgba(255,255,0,0.15); }
-
-#hint {
-  font-size: 11px; letter-spacing: 2px;
-  color: #440066; text-align: center; text-transform: uppercase;
-}
-```
-
+    #hint {
+      font-size: 11px; letter-spacing: 2px;
+      color: #440066; text-align: center; text-transform: uppercase;
+    }
   </style>
 </head>
 <body>
@@ -79,179 +57,220 @@ html, body {
 <div id="wrapper">
   <div id="gameContainer">
     <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="overlay">
-      <div id="oTitle">GAME OVER!</div>
-      <div id="oWinner"></div>
-      <div id="oScores"></div>
-      <button id="replayBtn">&#9654; PLAY AGAIN</button>
-    </div>
+    <button id="replayBtn">&#9654; PLAY AGAIN</button>
   </div>
-  <div id="hint">P1: WASD &nbsp;|&nbsp; P2: ARROW KEYS &nbsp;|&nbsp; First to 15 coins wins</div>
+  <div id="hint">
+    P1: WASD &nbsp;|&nbsp; P2: ARROW KEYS &nbsp;|&nbsp; First to 15 coins wins
+    &nbsp;&nbsp;|&nbsp;&nbsp;
+    <span style="color:#44ddaa;">&#9632; SLUDGE</span> slows opponent
+    &nbsp;|&nbsp;
+    <span style="color:#dd44ff;">&#9670; CONFUSION</span> inverts controls
+  </div>
 </div>
 
 <script>
 (function () {
   "use strict";
 
-  /* ── CONSTANTS ─────────────────────────────────── */
+  /* ════════════════════════════════════════
+     CONSTANTS
+  ════════════════════════════════════════ */
   var CW = 800, CH = 600;
   var AX = 40, AY = 80, AW = 720, AH = 480;
-  var SHIP_R   = 18;
-  var COIN_R   = 12;
-  var MET_R    = 22;
-  var WIN      = 15;
-  var FREEZE   = 2000;
-  var ACCEL    = 0.55;
-  var FRIC     = 0.88;
-  var MAXSPD   = 4.5;
-  var C1       = "#00ffff";
-  var C2       = "#ff44aa";
 
-  /* ── DOM ───────────────────────────────────────── */
-  var canvas   = document.getElementById("gameCanvas");
-  var ctx      = canvas.getContext("2d");
-  var overlay  = document.getElementById("overlay");
-  var oTitle   = document.getElementById("oTitle");
-  var oWinner  = document.getElementById("oWinner");
-  var oScores  = document.getElementById("oScores");
-  var replayBtn= document.getElementById("replayBtn");
+  var SHIP_R = 18;
+  var COIN_R = 12;
+  var MET_R  = 22;
+  var PWR_R  = 13;
 
-  /* ── STATIC BACKGROUND ─────────────────────────── */
+  var WIN    = 15;
+  var FREEZE = 2000;
+  var EFFECT = 4500;
+
+  var ACCEL  = 0.55;
+  var FRIC   = 0.88;
+  var MAXSPD = 4.5;
+
+  var C1 = "#00ffff";
+  var C2 = "#ff44aa";
+
+  var PU_SLUDGE    = "sludge";
+  var PU_CONFUSION = "confusion";
+
+  /* ════════════════════════════════════════
+     DOM
+  ════════════════════════════════════════ */
+  var canvas    = document.getElementById("gameCanvas");
+  var ctx       = canvas.getContext("2d");
+  var replayBtn = document.getElementById("replayBtn");
+
+  /* ════════════════════════════════════════
+     STATIC BACKGROUND
+  ════════════════════════════════════════ */
   var STARS = [], NEBULAS = [], i;
   for (i = 0; i < 120; i++) {
-    STARS.push({
-      x: Math.random() * CW, y: Math.random() * CH,
-      r: Math.random() * 1.4 + 0.3,
-      phase: Math.random() * Math.PI * 2,
-      spd: Math.random() * 0.02 + 0.008
-    });
+    STARS.push({ x: Math.random()*CW, y: Math.random()*CH,
+      r: Math.random()*1.4+0.3, phase: Math.random()*Math.PI*2,
+      spd: Math.random()*0.02+0.008 });
   }
   for (i = 0; i < 6; i++) {
-    NEBULAS.push({
-      x: Math.random() * CW, y: Math.random() * CH,
-      r: 100 + Math.random() * 130,
-      hue: Math.random() > 0.5 ? 270 : 220,
-      a: 0.04 + Math.random() * 0.05
-    });
+    NEBULAS.push({ x: Math.random()*CW, y: Math.random()*CH,
+      r: 100+Math.random()*130, hue: Math.random()>0.5?270:220,
+      a: 0.04+Math.random()*0.05 });
   }
 
-  /* ── INPUT ──────────────────────────────────────── */
+  /* ════════════════════════════════════════
+     INPUT
+  ════════════════════════════════════════ */
   var keys = {};
-  window.addEventListener("keydown", function (e) {
+  window.addEventListener("keydown", function(e) {
     keys[e.code] = true;
-    if (e.code === "ArrowUp" || e.code === "ArrowDown" ||
-        e.code === "ArrowLeft" || e.code === "ArrowRight") {
-      e.preventDefault();
-    }
+    if (e.code==="ArrowUp"||e.code==="ArrowDown"||
+        e.code==="ArrowLeft"||e.code==="ArrowRight") e.preventDefault();
   });
-  window.addEventListener("keyup", function (e) { keys[e.code] = false; });
+  window.addEventListener("keyup", function(e) { keys[e.code] = false; });
 
-  /* ── HELPERS ────────────────────────────────────── */
-  function rnd(lo, hi) { return lo + Math.random() * (hi - lo); }
+  /* ════════════════════════════════════════
+     HELPERS
+  ════════════════════════════════════════ */
   function randArena(margin) {
-    margin = margin || 40;
-    return {
-      x: AX + margin + Math.random() * (AW - margin * 2),
-      y: AY + margin + Math.random() * (AH - margin * 2)
-    };
+    margin = margin||40;
+    return { x: AX+margin+Math.random()*(AW-margin*2),
+             y: AY+margin+Math.random()*(AH-margin*2) };
   }
-  function hit(ax, ay, ar, bx, by, br) {
-    var dx = ax - bx, dy = ay - by;
-    return dx * dx + dy * dy < (ar + br) * (ar + br);
+  function hit(ax,ay,ar,bx,by,br) {
+    var dx=ax-bx, dy=ay-by;
+    return dx*dx+dy*dy < (ar+br)*(ar+br);
   }
-  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function clamp(v,lo,hi) { return v<lo?lo:v>hi?hi:v; }
 
-  /* ── GAME STATE ─────────────────────────────────── */
-  var p1, p2, coin, meteors, running, cSpin, cPulse, rafId;
+  /* ════════════════════════════════════════
+     GAME STATE
+  ════════════════════════════════════════ */
+  var p1, p2, coin, meteors, powerup, running,
+      cSpin, cPulse, puSpin, rafId, winnerNum;
 
   function mkPlayer(x, y, ang) {
-    return { x:x, y:y, vx:0, vy:0, angle:ang, score:0, frozen:false, frozenUntil:0 };
+    return { x:x, y:y, vx:0, vy:0, angle:ang, score:0,
+      frozen:false, frozenUntil:0,
+      sludged:false, sludgedUntil:0,
+      confused:false, confusedUntil:0 };
   }
 
   function mkMeteors() {
     var arr = [];
-    for (var j = 0; j < 4; j++) {
+    for (var j=0; j<4; j++) {
       var pos = randArena(60);
-      var ang = (Math.PI * 2 * j / 4) + Math.random() * 0.5;
-      arr.push({
-        x: pos.x, y: pos.y,
-        vx: Math.cos(ang) * 1.8, vy: Math.sin(ang) * 1.8,
-        rot: Math.random() * Math.PI * 2,
-        rotSpd: (Math.random() - 0.5) * 0.04
-      });
+      var ang = (Math.PI*2*j/4)+Math.random()*0.5;
+      arr.push({ x:pos.x, y:pos.y,
+        vx:Math.cos(ang)*1.8, vy:Math.sin(ang)*1.8,
+        rot:Math.random()*Math.PI*2,
+        rotSpd:(Math.random()-0.5)*0.04 });
     }
     return arr;
   }
 
-  function initGame() {
-    p1      = mkPlayer(AX + 120,        AY + AH / 2, 0);
-    p2      = mkPlayer(AX + AW - 120,   AY + AH / 2, Math.PI);
-    coin    = randArena();
-    meteors = mkMeteors();
-    cSpin   = 0;
-    cPulse  = 0;
-    running = true;
-    overlay.classList.remove("show");
+  function mkPowerup() {
+    var pos = randArena(50);
+    return { x:pos.x, y:pos.y,
+      type: Math.random()<0.5 ? PU_SLUDGE : PU_CONFUSION,
+      spin:0 };
   }
 
-  /* ── UPDATE ─────────────────────────────────────── */
+  function initGame() {
+    p1      = mkPlayer(AX+120,        AY+AH/2, 0);
+    p2      = mkPlayer(AX+AW-120,     AY+AH/2, Math.PI);
+    coin    = randArena();
+    meteors = mkMeteors();
+    powerup = mkPowerup();
+    cSpin   = 0; cPulse = 0; puSpin = 0;
+    running = true; winnerNum = 0;
+    replayBtn.classList.remove("show");
+  }
+
+  /* ════════════════════════════════════════
+     UPDATE
+  ════════════════════════════════════════ */
   function moveP(p, uk, dk, lk, rk) {
-    if (p.frozen) {
-      if (Date.now() > p.frozenUntil) p.frozen = false;
-      return;
-    }
-    if (keys[uk]) p.vy -= ACCEL;
-    if (keys[dk]) p.vy += ACCEL;
-    if (keys[lk]) p.vx -= ACCEL;
-    if (keys[rk]) p.vx += ACCEL;
+    var now = Date.now();
+    if (p.frozen) { if (now>p.frozenUntil) p.frozen=false; return; }
+    if (p.sludged  && now>p.sludgedUntil)  p.sludged  = false;
+    if (p.confused && now>p.confusedUntil) p.confused = false;
+
+    var speedMul = p.sludged  ? 0.28 : 1.0;
+    var dir      = p.confused ? -1   : 1;
+    var a = ACCEL * speedMul;
+
+    if (keys[uk]) p.vy -= a*dir;
+    if (keys[dk]) p.vy += a*dir;
+    if (keys[lk]) p.vx -= a*dir;
+    if (keys[rk]) p.vx += a*dir;
+
     p.vx *= FRIC; p.vy *= FRIC;
-    var spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-    if (spd > MAXSPD) { p.vx = p.vx / spd * MAXSPD; p.vy = p.vy / spd * MAXSPD; }
+    var spd = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+    var ms  = MAXSPD * speedMul;
+    if (spd > ms) { p.vx=p.vx/spd*ms; p.vy=p.vy/spd*ms; }
     if (spd > 0.1) p.angle = Math.atan2(p.vy, p.vx);
     p.x += p.vx; p.y += p.vy;
-    p.x = clamp(p.x, AX + SHIP_R, AX + AW - SHIP_R);
-    p.y = clamp(p.y, AY + SHIP_R, AY + AH - SHIP_R);
+    p.x = clamp(p.x, AX+SHIP_R, AX+AW-SHIP_R);
+    p.y = clamp(p.y, AY+SHIP_R, AY+AH-SHIP_R);
   }
 
   function update() {
     if (!running) return;
-    cSpin  += 0.06;
-    cPulse += 0.08;
+    cSpin += 0.06; cPulse += 0.08; puSpin += 0.05;
 
-    for (var j = 0; j < meteors.length; j++) {
+    for (var j=0; j<meteors.length; j++) {
       var m = meteors[j];
-      m.x += m.vx; m.y += m.vy; m.rot += m.rotSpd;
-      if (m.x - MET_R < AX)        { m.x = AX + MET_R;        m.vx *= -1; }
-      if (m.x + MET_R > AX + AW)   { m.x = AX + AW - MET_R;   m.vx *= -1; }
-      if (m.y - MET_R < AY)        { m.y = AY + MET_R;        m.vy *= -1; }
-      if (m.y + MET_R > AY + AH)   { m.y = AY + AH - MET_R;   m.vy *= -1; }
+      m.x+=m.vx; m.y+=m.vy; m.rot+=m.rotSpd;
+      if (m.x-MET_R<AX)        { m.x=AX+MET_R;        m.vx*=-1; }
+      if (m.x+MET_R>AX+AW)     { m.x=AX+AW-MET_R;     m.vx*=-1; }
+      if (m.y-MET_R<AY)        { m.y=AY+MET_R;        m.vy*=-1; }
+      if (m.y+MET_R>AY+AH)     { m.y=AY+AH-MET_R;     m.vy*=-1; }
     }
 
-    moveP(p1, "KeyW",    "KeyS",     "KeyA",     "KeyD");
-    moveP(p2, "ArrowUp", "ArrowDown","ArrowLeft", "ArrowRight");
+    moveP(p1,"KeyW","KeyS","KeyA","KeyD");
+    moveP(p2,"ArrowUp","ArrowDown","ArrowLeft","ArrowRight");
 
-    // coin pickup
     var players = [p1, p2];
-    for (var pi = 0; pi < 2; pi++) {
+
+    /* coin pickup */
+    for (var pi=0; pi<2; pi++) {
       var p = players[pi];
-      if (!p.frozen && hit(p.x, p.y, SHIP_R - 4, coin.x, coin.y, COIN_R)) {
-        p.score++;
-        coin = randArena();
-        if (p.score >= WIN) { endGame(pi + 1); return; }
+      if (!p.frozen && hit(p.x,p.y,SHIP_R-4,coin.x,coin.y,COIN_R)) {
+        p.score++; coin = randArena();
+        if (p.score>=WIN) { endGame(pi+1); return; }
       }
     }
 
-    // meteor freeze
-    for (var pi2 = 0; pi2 < 2; pi2++) {
-      var pp = players[pi2];
-      if (pp.frozen) continue;
-      for (var j2 = 0; j2 < meteors.length; j2++) {
-        var mm = meteors[j2];
-        if (hit(pp.x, pp.y, SHIP_R - 6, mm.x, mm.y, MET_R - 4)) {
-          pp.frozen = true;
-          pp.frozenUntil = Date.now() + FREEZE;
-          pp.vx = 0; pp.vy = 0;
+    /* power-up pickup */
+    if (powerup) {
+      for (var qi=0; qi<2; qi++) {
+        var pp = players[qi];
+        if (!pp.frozen && hit(pp.x,pp.y,SHIP_R-4,powerup.x,powerup.y,PWR_R)) {
+          var opp = players[1-qi];
+          var now2 = Date.now();
+          if (powerup.type===PU_SLUDGE) {
+            opp.sludged=true; opp.sludgedUntil=now2+EFFECT;
+          } else {
+            opp.confused=true; opp.confusedUntil=now2+EFFECT;
+          }
+          powerup = null;
+          (function(){ setTimeout(function(){ if(running) powerup=mkPowerup(); },3000); }());
           break;
+        }
+      }
+    }
+
+    /* meteor freeze */
+    for (var pi2=0; pi2<2; pi2++) {
+      var pp2 = players[pi2];
+      if (pp2.frozen) continue;
+      for (var j2=0; j2<meteors.length; j2++) {
+        var mm = meteors[j2];
+        if (hit(pp2.x,pp2.y,SHIP_R-6,mm.x,mm.y,MET_R-4)) {
+          pp2.frozen=true; pp2.frozenUntil=Date.now()+FREEZE;
+          pp2.vx=0; pp2.vy=0; break;
         }
       }
     }
@@ -259,247 +278,360 @@ html, body {
 
   function endGame(num) {
     running = false;
-    var col = num === 1 ? C1 : C2;
-    oTitle.style.color      = col;
-    oTitle.style.textShadow = "0 0 30px " + col + ", 0 0 60px " + col;
-    oWinner.textContent     = "PLAYER " + num + " WINS!";
-    oScores.textContent     = "P1: " + p1.score + "  \u2014  P2: " + p2.score;
-    overlay.classList.add("show");
+    winnerNum = num;
+    replayBtn.classList.add("show");
   }
 
-  /* ── DRAW: BACKGROUND ───────────────────────────── */
+  /* ════════════════════════════════════════
+     DRAW: BACKGROUND
+  ════════════════════════════════════════ */
   function drawBG(t) {
-    ctx.fillStyle = "#050510";
-    ctx.fillRect(0, 0, CW, CH);
-
-    for (var j = 0; j < NEBULAS.length; j++) {
-      var n = NEBULAS[j];
-      var g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
-      g.addColorStop(0, "hsla(" + n.hue + ",80%,50%," + (n.a * 2).toFixed(3) + ")");
-      g.addColorStop(1, "hsla(" + n.hue + ",80%,30%,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-      ctx.fill();
+    ctx.fillStyle="#050510"; ctx.fillRect(0,0,CW,CH);
+    for (var j=0; j<NEBULAS.length; j++) {
+      var n=NEBULAS[j];
+      var g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
+      g.addColorStop(0,"hsla("+n.hue+",80%,50%,"+(n.a*2).toFixed(3)+")");
+      g.addColorStop(1,"hsla("+n.hue+",80%,30%,0)");
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fill();
     }
-
-    for (var k = 0; k < STARS.length; k++) {
-      var s = STARS[k];
-      var alpha = 0.4 + 0.6 * Math.abs(Math.sin(s.phase + t * s.spd));
-      ctx.fillStyle = "rgba(255,255,255," + alpha.toFixed(3) + ")";
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fill();
+    for (var k=0; k<STARS.length; k++) {
+      var s=STARS[k];
+      var alpha=0.4+0.6*Math.abs(Math.sin(s.phase+t*s.spd));
+      ctx.fillStyle="rgba(255,255,255,"+alpha.toFixed(3)+")";
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
     }
   }
 
-  /* ── DRAW: ARENA ────────────────────────────────── */
+  /* ════════════════════════════════════════
+     DRAW: ARENA
+  ════════════════════════════════════════ */
   function drawArena() {
     ctx.save();
-    ctx.shadowColor = "#cc00ff"; ctx.shadowBlur = 22;
-    ctx.strokeStyle = "#cc00ff"; ctx.lineWidth  = 3;
-    ctx.strokeRect(AX, AY, AW, AH);
-    ctx.shadowBlur  = 6;
-    ctx.strokeStyle = "#ff66ff"; ctx.lineWidth = 1;
-    ctx.strokeRect(AX + 4, AY + 4, AW - 8, AH - 8);
+    ctx.shadowColor="#cc00ff"; ctx.shadowBlur=22;
+    ctx.strokeStyle="#cc00ff"; ctx.lineWidth=3;
+    ctx.strokeRect(AX,AY,AW,AH);
+    ctx.shadowBlur=6; ctx.strokeStyle="#ff66ff"; ctx.lineWidth=1;
+    ctx.strokeRect(AX+4,AY+4,AW-8,AH-8);
     ctx.restore();
   }
 
-  /* ── DRAW: HUD ──────────────────────────────────── */
+  /* ════════════════════════════════════════
+     DRAW: HUD
+  ════════════════════════════════════════ */
   function drawHUD() {
-    ctx.fillStyle = "rgba(0,0,5,0.88)";
-    ctx.fillRect(0, 0, CW, 72);
-    ctx.strokeStyle = "#440066"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, 71); ctx.lineTo(CW, 71); ctx.stroke();
+    ctx.fillStyle="rgba(0,0,5,0.88)"; ctx.fillRect(0,0,CW,72);
+    ctx.strokeStyle="#440066"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,71); ctx.lineTo(CW,71); ctx.stroke();
 
     ctx.save();
-    ctx.shadowColor = C1; ctx.shadowBlur = 14; ctx.fillStyle = C1;
-    ctx.font = "bold 22px 'Courier New',monospace";
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    ctx.fillText("P1 SCORE: " + p1.score, 60, 46);
+    ctx.shadowColor=C1; ctx.shadowBlur=14; ctx.fillStyle=C1;
+    ctx.font="bold 22px 'Courier New',monospace";
+    ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+    ctx.fillText("P1 SCORE: "+p1.score, 60, 46);
     ctx.restore();
 
     ctx.save();
-    ctx.shadowColor = C2; ctx.shadowBlur = 14; ctx.fillStyle = C2;
-    ctx.font = "bold 22px 'Courier New',monospace";
-    ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
-    ctx.fillText("P2 SCORE: " + p2.score, 740, 46);
+    ctx.shadowColor=C2; ctx.shadowBlur=14; ctx.fillStyle=C2;
+    ctx.font="bold 22px 'Courier New',monospace";
+    ctx.textAlign="right"; ctx.textBaseline="alphabetic";
+    ctx.fillText("P2 SCORE: "+p2.score, 740, 46);
     ctx.restore();
 
     ctx.save();
-    ctx.shadowColor = "#aa44ff"; ctx.shadowBlur = 8; ctx.fillStyle = "#cc88ff";
-    ctx.font = "bold 13px 'Courier New',monospace";
-    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    ctx.fillText("\u2605 NEON SPACE THIEVES \u2605", 400, 28);
+    ctx.shadowColor="#aa44ff"; ctx.shadowBlur=8; ctx.fillStyle="#cc88ff";
+    ctx.font="bold 13px 'Courier New',monospace";
+    ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+    ctx.fillText("\u2605 NEON SPACE THIEVES \u2605", 400, 26);
     ctx.restore();
 
     ctx.save();
-    ctx.fillStyle = "#664488"; ctx.shadowBlur = 0;
-    ctx.font = "10px 'Courier New',monospace";
-    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    ctx.fillText("P1: WASD  |  P2: ARROWS  |  First to 15 wins!", 400, 56);
+    ctx.fillStyle="#664488"; ctx.shadowBlur=0;
+    ctx.font="9px 'Courier New',monospace";
+    ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+    ctx.fillText("P1: WASD  |  P2: ARROWS  |  First to 15 wins!", 400, 54);
+    ctx.restore();
+
+    drawStatusTags(p1, 60, "left");
+    drawStatusTags(p2, 740, "right");
+  }
+
+  function drawStatusTags(p, baseX, align) {
+    var now=Date.now(), tags=[];
+    if (p.sludged  && now<p.sludgedUntil)  tags.push({label:"SLUDGE",   color:"#44ddaa", remain:p.sludgedUntil-now});
+    if (p.confused && now<p.confusedUntil) tags.push({label:"INVERTED", color:"#dd44ff", remain:p.confusedUntil-now});
+    if (p.frozen   && now<p.frozenUntil)   tags.push({label:"FROZEN",   color:"#88aaff", remain:p.frozenUntil-now});
+    if (!tags.length) return;
+    ctx.save();
+    ctx.font="bold 9px 'Courier New',monospace";
+    ctx.textBaseline="alphabetic";
+    for (var ti=0; ti<tags.length; ti++) {
+      var tag=tags[ti];
+      var txt=tag.label+" "+((tag.remain/1000).toFixed(1))+"s";
+      var tw=ctx.measureText(txt).width;
+      var bw=tw+12, bh=14, by=57;
+      var bx = align==="left" ? baseX+ti*(bw+6) : baseX-(ti+1)*(bw+6)+6;
+      ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(bx,by,bw,bh);
+      ctx.strokeStyle=tag.color; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
+      ctx.fillStyle=tag.color; ctx.shadowColor=tag.color; ctx.shadowBlur=6;
+      ctx.textAlign="left";
+      ctx.fillText(txt, bx+6, by+bh-4);
+    }
     ctx.restore();
   }
 
-  /* ── DRAW: SHIP ─────────────────────────────────── */
+  /* ════════════════════════════════════════
+     DRAW: SHIP
+  ════════════════════════════════════════ */
   function drawShip(p, color) {
+    var now=Date.now();
+    var frozen  = p.frozen   && now<p.frozenUntil;
+    var sludged = p.sludged  && now<p.sludgedUntil;
+    var confused= p.confused && now<p.confusedUntil;
+    var c = frozen ? "#888888" : (sludged&&confused ? "#aa66cc" : sludged ? "#44ddaa" : confused ? "#dd44ff" : color);
+
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle);
+    ctx.shadowColor=frozen?"#333":c; ctx.shadowBlur=frozen?5:18;
 
-    var frozen = p.frozen;
-    var c = frozen ? "#888" : color;
-    ctx.shadowColor = frozen ? "#333" : color;
-    ctx.shadowBlur  = frozen ? 5 : 16;
-
-    // Body
-    ctx.fillStyle = c;
+    ctx.fillStyle=c;
     ctx.beginPath();
-    ctx.moveTo( 18,  0);
-    ctx.lineTo(-10, -9);
-    ctx.lineTo( -5,  0);
-    ctx.lineTo(-10,  9);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(18,0); ctx.lineTo(-10,-9); ctx.lineTo(-5,0); ctx.lineTo(-10,9);
+    ctx.closePath(); ctx.fill();
 
-    // Top wing
-    ctx.fillStyle = frozen ? "#777" : color;
+    ctx.fillStyle=frozen?"#777":c;
     ctx.beginPath();
-    ctx.moveTo(  0, -8);
-    ctx.lineTo(-10, -9);
-    ctx.lineTo( -8,-17);
-    ctx.lineTo(  2,-11);
-    ctx.closePath();
-    ctx.fill();
-
-    // Bottom wing
+    ctx.moveTo(0,-8); ctx.lineTo(-10,-9); ctx.lineTo(-8,-17); ctx.lineTo(2,-11);
+    ctx.closePath(); ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(  0,  8);
-    ctx.lineTo(-10,  9);
-    ctx.lineTo( -8, 17);
-    ctx.lineTo(  2, 11);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(0,8); ctx.lineTo(-10,9); ctx.lineTo(-8,17); ctx.lineTo(2,11);
+    ctx.closePath(); ctx.fill();
 
-    // Cockpit
-    ctx.fillStyle = frozen ? "#444" : (color === C1 ? "#003344" : "#330011");
-    ctx.fillRect(3, -3, 9, 6);
+    ctx.fillStyle=frozen?"#444":(color===C1?"#003344":"#330011");
+    ctx.fillRect(3,-3,9,6);
+    ctx.fillStyle=frozen?"#555":(color===C1?"#88ffff":"#ffaacc");
+    ctx.fillRect(5,-2,4,2);
 
-    // Glint
-    ctx.fillStyle = frozen ? "#555" : (color === C1 ? "#88ffff" : "#ffaacc");
-    ctx.fillRect(5, -2, 4, 2);
-
-    // Freeze rings
     if (frozen) {
-      ctx.lineWidth = 1;
-      for (var fi = 0; fi < 3; fi++) {
-        ctx.strokeStyle = "rgba(140,190,255," + (0.4 - fi * 0.1).toFixed(2) + ")";
-        ctx.globalAlpha = 0.35 - fi * 0.08;
-        ctx.beginPath();
-        ctx.arc(0, 0, 15 + fi * 7, 0, Math.PI * 2);
-        ctx.stroke();
+      ctx.lineWidth=1;
+      for (var fi=0; fi<3; fi++) {
+        ctx.strokeStyle="rgba(140,190,255,"+(0.4-fi*0.1).toFixed(2)+")";
+        ctx.globalAlpha=0.35-fi*0.08;
+        ctx.beginPath(); ctx.arc(0,0,15+fi*7,0,Math.PI*2); ctx.stroke();
       }
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha=1;
     }
+    ctx.restore();
+    drawShipLabel(p, now);
+  }
 
+  function drawShipLabel(p, now) {
+    var lines=[];
+    if (p.sludged  && now<p.sludgedUntil)  lines.push({txt:"SLUDGE "  +((p.sludgedUntil -now)/1000).toFixed(1)+"s", col:"#44ddaa"});
+    if (p.confused && now<p.confusedUntil) lines.push({txt:"INVERTED "+((p.confusedUntil-now)/1000).toFixed(1)+"s", col:"#dd44ff"});
+    if (!lines.length) return;
+    ctx.save();
+    ctx.font="bold 10px 'Courier New',monospace";
+    ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+    for (var li=0; li<lines.length; li++) {
+      var ln=lines[li];
+      ctx.shadowColor=ln.col; ctx.shadowBlur=8; ctx.fillStyle=ln.col;
+      ctx.fillText(ln.txt, p.x, p.y-28-li*14);
+    }
     ctx.restore();
   }
 
-  /* ── DRAW: COIN ─────────────────────────────────── */
+  /* ════════════════════════════════════════
+     DRAW: COIN
+  ════════════════════════════════════════ */
   function drawCoin() {
     ctx.save();
     ctx.translate(coin.x, coin.y);
-
-    // Halo
-    var halo = ctx.createRadialGradient(0, 0, 0, 0, 0, COIN_R * 2.5);
-    halo.addColorStop(0, "rgba(255,220,0,0.35)");
-    halo.addColorStop(1, "rgba(255,160,0,0)");
-    ctx.fillStyle = halo;
-    ctx.beginPath(); ctx.arc(0, 0, COIN_R * 2.5, 0, Math.PI * 2); ctx.fill();
-
-    // Spin squish
-    ctx.scale(Math.abs(Math.cos(cSpin)) * 0.9 + 0.1, 1);
-
-    ctx.shadowColor = "#ffdd00";
-    ctx.shadowBlur  = 8 + Math.sin(cPulse) * 6;
-
-    var lum = Math.floor(52 + Math.sin(cPulse) * 10);
-    ctx.fillStyle = "hsl(45,100%," + lum + "%)";
-    ctx.beginPath(); ctx.arc(0, 0, COIN_R, 0, Math.PI * 2); ctx.fill();
-
-    ctx.strokeStyle = "#fff8a0"; ctx.lineWidth = 2; ctx.stroke();
-
-    ctx.shadowBlur = 0; ctx.fillStyle = "#7a5500";
-    ctx.font = "bold 12px 'Courier New',monospace";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("$", 0, 1);
-
+    var halo=ctx.createRadialGradient(0,0,0,0,0,COIN_R*2.5);
+    halo.addColorStop(0,"rgba(255,220,0,0.35)");
+    halo.addColorStop(1,"rgba(255,160,0,0)");
+    ctx.fillStyle=halo;
+    ctx.beginPath(); ctx.arc(0,0,COIN_R*2.5,0,Math.PI*2); ctx.fill();
+    ctx.scale(Math.abs(Math.cos(cSpin))*0.9+0.1, 1);
+    ctx.shadowColor="#ffdd00"; ctx.shadowBlur=8+Math.sin(cPulse)*6;
+    ctx.fillStyle="hsl(45,100%,"+Math.floor(52+Math.sin(cPulse)*10)+"%)";
+    ctx.beginPath(); ctx.arc(0,0,COIN_R,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="#fff8a0"; ctx.lineWidth=2; ctx.stroke();
+    ctx.shadowBlur=0; ctx.fillStyle="#7a5500";
+    ctx.font="bold 12px 'Courier New',monospace";
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText("$",0,1);
     ctx.restore();
   }
 
-  /* ── DRAW: METEOR ───────────────────────────────── */
-  var MOFF = [0.85, 0.95, 0.75, 1.0, 0.82, 0.92, 0.70, 0.96];
+  /* ════════════════════════════════════════
+     DRAW: POWER-UPS
+  ════════════════════════════════════════ */
+  function drawPowerup() {
+    if (!powerup) return;
+    powerup.spin += 0.05;
+    ctx.save();
+    ctx.translate(powerup.x, powerup.y);
+    if (powerup.type===PU_SLUDGE) drawSludge(powerup.spin);
+    else                           drawConfusion(powerup.spin);
+    ctx.restore();
+  }
 
+  function drawSludge(spin) {
+    var R=PWR_R, col="#44ddaa";
+    var glo=ctx.createRadialGradient(0,0,0,0,0,R*2.2);
+    glo.addColorStop(0,"rgba(60,220,160,0.4)"); glo.addColorStop(1,"rgba(0,80,50,0)");
+    ctx.fillStyle=glo; ctx.beginPath(); ctx.arc(0,0,R*2.2,0,Math.PI*2); ctx.fill();
+    ctx.shadowColor=col; ctx.shadowBlur=14; ctx.fillStyle="#1a5540";
+    ctx.beginPath();
+    for (var hi=0; hi<6; hi++) {
+      var ha=spin+Math.PI/6+(Math.PI*2*hi/6);
+      var hx=Math.cos(ha)*R, hy=Math.sin(ha)*R;
+      if(hi===0) ctx.moveTo(hx,hy); else ctx.lineTo(hx,hy);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
+    ctx.shadowBlur=0; ctx.fillStyle=col;
+    ctx.beginPath(); ctx.arc(0,-3,3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0,4,2,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(0,-3); ctx.lineTo(0,4); ctx.stroke();
+    ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=6;
+    ctx.font="bold 7px 'Courier New',monospace";
+    ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+    ctx.fillText("SLUDGE",0,R+11);
+  }
+
+  function drawConfusion(spin) {
+    var R=PWR_R, col="#dd44ff";
+    var glo=ctx.createRadialGradient(0,0,0,0,0,R*2.2);
+    glo.addColorStop(0,"rgba(200,50,255,0.4)"); glo.addColorStop(1,"rgba(60,0,80,0)");
+    ctx.fillStyle=glo; ctx.beginPath(); ctx.arc(0,0,R*2.2,0,Math.PI*2); ctx.fill();
+    ctx.save();
+    ctx.rotate(spin);
+    ctx.shadowColor=col; ctx.shadowBlur=14; ctx.fillStyle="#3a0050";
+    ctx.beginPath();
+    ctx.moveTo(0,-R); ctx.lineTo(R,0); ctx.lineTo(0,R); ctx.lineTo(-R,0);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.shadowBlur=0;
+    ctx.beginPath();
+    ctx.moveTo(-4,-2); ctx.lineTo(0,-6); ctx.lineTo(4,-2);
+    ctx.moveTo(-4, 2); ctx.lineTo(0, 6); ctx.lineTo(4, 2);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=6;
+    ctx.font="bold 7px 'Courier New',monospace";
+    ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+    ctx.fillText("CHAOS",0,R+11);
+  }
+
+  /* ════════════════════════════════════════
+     DRAW: METEOR
+  ════════════════════════════════════════ */
+  var MOFF=[0.85,0.95,0.75,1.0,0.82,0.92,0.70,0.96];
   function drawMeteor(m) {
     ctx.save();
-    ctx.translate(m.x, m.y);
-    ctx.rotate(m.rot);
-
-    ctx.shadowColor = "#aa7755"; ctx.shadowBlur = 8;
-
+    ctx.translate(m.x,m.y); ctx.rotate(m.rot);
+    ctx.shadowColor="#aa7755"; ctx.shadowBlur=8;
     ctx.beginPath();
-    for (var j = 0; j < 8; j++) {
-      var a  = Math.PI * 2 * j / 8;
-      var r  = MET_R * MOFF[j];
-      var px = Math.cos(a) * r, py = Math.sin(a) * r;
-      if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    for (var j=0; j<8; j++) {
+      var a=Math.PI*2*j/8, r=MET_R*MOFF[j];
+      var px=Math.cos(a)*r, py=Math.sin(a)*r;
+      if(j===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
     }
     ctx.closePath();
-
-    var g = ctx.createRadialGradient(0, 0, 2, 0, 0, MET_R);
-    g.addColorStop(0,   "#c0a080");
-    g.addColorStop(0.5, "#7a5a40");
-    g.addColorStop(1,   "#3a2010");
-    ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = "#c8a878"; ctx.lineWidth = 1.5; ctx.stroke();
-
-    ctx.strokeStyle = "rgba(30,15,5,0.55)"; ctx.lineWidth = 1; ctx.shadowBlur = 0;
+    var g=ctx.createRadialGradient(0,0,2,0,0,MET_R);
+    g.addColorStop(0,"#c0a080"); g.addColorStop(0.5,"#7a5a40"); g.addColorStop(1,"#3a2010");
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle="#c8a878"; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.strokeStyle="rgba(30,15,5,0.55)"; ctx.lineWidth=1; ctx.shadowBlur=0;
     ctx.beginPath();
-    ctx.moveTo(-6,-4); ctx.lineTo(2, 4);
-    ctx.moveTo( 4,-6); ctx.lineTo(0, 2);
+    ctx.moveTo(-6,-4); ctx.lineTo(2,4);
+    ctx.moveTo(4,-6);  ctx.lineTo(0,2);
     ctx.stroke();
-
     ctx.restore();
   }
 
-  /* ── RENDER ─────────────────────────────────────── */
+  /* ════════════════════════════════════════
+     DRAW: GAME OVER  (pure canvas — explicit Y coords)
+  ════════════════════════════════════════ */
+  function drawGameOver() {
+    /* dark overlay */
+    ctx.fillStyle="rgba(0,0,12,0.88)";
+    ctx.fillRect(0,0,CW,CH);
+
+    var col = winnerNum===1 ? C1 : C2;
+
+    /* ── "GAME OVER!" ── Y = 220 */
+    ctx.save();
+    ctx.font="bold 58px 'Courier New',monospace";
+    ctx.textAlign="center";
+    ctx.textBaseline="alphabetic";
+    ctx.shadowColor=col; ctx.shadowBlur=30;
+    ctx.fillStyle=col;
+    ctx.fillText("GAME OVER!", CW/2, 220);
+    ctx.restore();
+
+    /* ── "PLAYER X WINS!" ── Y = 300  (80 px below) */
+    ctx.save();
+    ctx.font="bold 36px 'Courier New',monospace";
+    ctx.textAlign="center";
+    ctx.textBaseline="alphabetic";
+    ctx.shadowColor="#ffff00"; ctx.shadowBlur=24;
+    ctx.fillStyle="#ffff00";
+    ctx.fillText("PLAYER "+winnerNum+" WINS!", CW/2, 300);
+    ctx.restore();
+
+    /* ── scores ── Y = 348  (48 px below winner) */
+    ctx.save();
+    ctx.font="16px 'Courier New',monospace";
+    ctx.textAlign="center";
+    ctx.textBaseline="alphabetic";
+    ctx.shadowBlur=0; ctx.fillStyle="#888888";
+    ctx.fillText("P1: "+p1.score+"  \u2014  P2: "+p2.score, CW/2, 348);
+    ctx.restore();
+
+    /* ── decorative divider ── */
+    ctx.save();
+    ctx.strokeStyle="#444444"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(200, 365); ctx.lineTo(600, 365); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ════════════════════════════════════════
+     RENDER
+  ════════════════════════════════════════ */
   function render(ts) {
-    var t = ts / 100;
+    var t=ts/100;
     drawBG(t);
     drawArena();
     drawHUD();
-    for (var j = 0; j < meteors.length; j++) drawMeteor(meteors[j]);
+    for (var j=0; j<meteors.length; j++) drawMeteor(meteors[j]);
     drawCoin();
-    drawShip(p1, C1);
-    drawShip(p2, C2);
+    drawPowerup();
+    drawShip(p1,C1);
+    drawShip(p2,C2);
+    if (!running && winnerNum) drawGameOver();
   }
 
-  /* ── LOOP ───────────────────────────────────────── */
+  /* ════════════════════════════════════════
+     LOOP
+  ════════════════════════════════════════ */
   function loop(ts) {
     update();
     render(ts);
-    rafId = requestAnimationFrame(loop);
+    rafId=requestAnimationFrame(loop);
   }
 
   function startGame() {
     if (rafId) cancelAnimationFrame(rafId);
     initGame();
-    rafId = requestAnimationFrame(loop);
+    rafId=requestAnimationFrame(loop);
   }
 
   replayBtn.addEventListener("click", startGame);
-
-  /* ── KICK OFF ───────────────────────────────────── */
   startGame();
 
 }());
